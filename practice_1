@@ -1,0 +1,35 @@
+@ECHO OFF
+setlocal
+
+:: Set default directory to user's home
+set "dir=%~1"
+if "%dir%"=="" set "dir=%USERPROFILE%"
+
+:: Set default file extension to .bat
+set "ext=%~2"
+if "ext%"=="" set "ext=.bat"
+
+:: Define log file name and path
+set "logfile=%dir%\file_log.txt"
+
+:: Get current date and time
+echo %DATE% > "%logfile%"
+echo %TIME% >> "%logfile%"
+
+:: Iterate through files and append to log
+for /r "%dir%" %%F in (*%ext%) do (
+	echo %%~nxF >> "%logfile%"
+	echo %%~fF >> "%logfile%"
+)
+
+:: Open log file in Notepad
+notepad "%logfile%"
+
+:: Pause execution
+pause
+
+:: Close Notepad
+taskkill /IM notepad.exe /F
+
+:: End script
+exit
