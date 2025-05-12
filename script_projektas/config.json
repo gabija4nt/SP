@@ -1,0 +1,15 @@
+{
+    "processes": [
+        {
+            "name": "Spotify.exe",
+            "ram_limit_mb": 50
+        },
+        {
+            "name": "Safari",
+            "ram_limit_mb": 50
+        }
+    ],
+    "check_interval_sec": 5,
+    "ignored_programs": [
+    ]
+}
