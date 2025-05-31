@@ -1,35 +1,95 @@
-@ECHO OFF
-setlocal
+#!/usr/bin/env php
+<?php
 
-:: Set default directory to user's home
-set "dir=%~1"
-if "%dir%"=="" set "dir=%USERPROFILE%"
+$validFormats = ['txt', 'csv', 'html'];
+// Get CLI arguments
+$format = $argv[1] ?? 'txt';
+$username = $argv[2] ?? null; // Default to current user if not provided
 
-:: Set default file extension to .bat
-set "ext=%~2"
-if "ext%"=="" set "ext=.bat"
+// Parse CLI arguments
+if (isset($argv[1]) && in_array(strtolower($argv[1]), $validFormats)) {
+    $format = strtolower($argv[1]);
+    if (isset($argv[2])) {
+        $username = $argv[2];
+    }
+} elseif (isset($argv[1])) {
+    $username = $argv[1];
+}
 
-:: Define log file name and path
-set "logfile=%dir%\file_log.txt"
+// Function to get processes
+function getProcesses($username = null) {
+    $cmd = "ps -Ao user,pid,%cpu,%mem,vsz,rss,tt,state,start,time,command";
+    exec($cmd, $output);
 
-:: Get current date and time
-echo %DATE% > "%logfile%"
-echo %TIME% >> "%logfile%"
+    $headerLine = array_shift($output);
+    preg_match_all('/\S+/', $headerLine, $matches);
+    $headers = $matches[0];
 
-:: Iterate through files and append to log
-for /r "%dir%" %%F in (*%ext%) do (
-	echo %%~nxF >> "%logfile%"
-	echo %%~fF >> "%logfile%"
-)
+    $processes = [];
+    foreach ($output as $line) {
+        $fields = preg_split('/\s+/', trim($line), count($headers));
+        if (count($fields) < count($headers)) continue;
 
-:: Open log file in Notepad
-notepad "%logfile%"
+        $processUser = trim($fields[0]);
 
-:: Pause execution
-pause
+        if ($username === null || $processUser === $username) {
+            $processes[] = $fields;
+        }
+    }
 
-:: Close Notepad
-taskkill /IM notepad.exe /F
+    return [$headers, $processes];
+}
 
-:: End script
-exit
+// Get process data
+list($headers, $processes) = getProcesses($username);
+
+// Set output file
+$filename = "process_log." . $format;
+
+// Format output
+switch (strtolower($format)) {
+    case "html":
+        $html = "<!DOCTYPE html>\n<html>\n<body>\n";
+        $html .= "<table border='1' cellspacing='0' cellpadding='5'>\n<tr>";
+        foreach ($headers as $header) {
+            $html .= "<th>" . htmlspecialchars($header) . "</th>";
+        }
+        $html .= "</tr>\n";
+        foreach ($processes as $proc) {
+            $html .= "<tr>";
+            foreach ($proc as $value) {
+                $html .= "<td>" . htmlspecialchars($value) . "</td>";
+            }
+            $html .= "</tr>\n";
+        }
+        $html .= "</table>\n</body>\n</html>";
+        file_put_contents($filename, $html);
+        exec("open " . escapeshellarg($filename)); // Opens in browser
+        break;
+
+    case "csv":
+        $fp = fopen($filename, "w");
+        fputcsv($fp, $headers, "\t"); // tab-separated CSV
+        foreach ($processes as $proc) {
+            fputcsv($fp, $proc, "\t");
+        }
+        fclose($fp);
+        break;
+
+    case "txt":
+    default:
+        $lines = [implode("\t", $headers)];
+        foreach ($processes as $proc) {
+            $lines[] = implode("\t", $proc);
+        }
+        file_put_contents($filename, implode(PHP_EOL, $lines));
+        break;
+}
+
+// Pause and delete
+echo "Log saved as '$filename'. Press ENTER to delete it...";
+fgets(STDIN);
+unlink($filename);
+echo "Log deleted.\n";
+
+?>
